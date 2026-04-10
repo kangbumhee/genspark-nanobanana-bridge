@@ -13,6 +13,7 @@ const GENSPARK_HEADLESS = String(process.env.GENSPARK_HEADLESS || 'false') === '
 const GENSPARK_AI_IMAGE_URL = 'https://www.genspark.ai/ai_image';
 const GENSPARK_ORIGIN = 'https://www.genspark.ai';
 const BROWSER_IDLE_MS = Number(process.env.BROWSER_IDLE_MS || 180000);
+const GENSPARK_BROWSER_CHANNEL = String(process.env.GENSPARK_BROWSER_CHANNEL || '').trim();
 const SESSION_STATE_FILE = path.resolve(
   process.cwd(),
   process.env.GENSPARK_SESSION_STATE_FILE || './bridge-output/session-state.json'
@@ -139,11 +140,14 @@ function requireApiKey(req, res, next) {
 
 async function getContext({ headless = GENSPARK_HEADLESS } = {}) {
   if (!contextPromise) {
-    contextPromise = chromium.launchPersistentContext(GENSPARK_USER_DATA_DIR, {
+    const launchOptions = {
       headless,
-      channel: 'chrome',
       viewport: { width: 1440, height: 960 }
-    });
+    };
+    if (GENSPARK_BROWSER_CHANNEL) {
+      launchOptions.channel = GENSPARK_BROWSER_CHANNEL;
+    }
+    contextPromise = chromium.launchPersistentContext(GENSPARK_USER_DATA_DIR, launchOptions);
   }
 
   const context = await contextPromise;
@@ -266,11 +270,14 @@ async function waitForImages(page) {
 }
 
 async function openLoginWindow() {
-  const context = await chromium.launchPersistentContext(GENSPARK_USER_DATA_DIR, {
+  const launchOptions = {
     headless: false,
-    channel: 'chrome',
     viewport: { width: 1440, height: 960 }
-  });
+  };
+  if (GENSPARK_BROWSER_CHANNEL) {
+    launchOptions.channel = GENSPARK_BROWSER_CHANNEL;
+  }
+  const context = await chromium.launchPersistentContext(GENSPARK_USER_DATA_DIR, launchOptions);
   const page = await getPage(context);
   await page.bringToFront();
   console.log('Login browser opened. Sign in to Genspark, then close the browser window.');
