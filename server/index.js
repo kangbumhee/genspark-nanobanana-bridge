@@ -17,12 +17,33 @@ const SESSION_STATE_FILE = path.resolve(
   process.cwd(),
   process.env.GENSPARK_SESSION_STATE_FILE || './bridge-output/session-state.json'
 );
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^chrome-extension:\/\//i,
+  /^https:\/\/genspark-nanobanana-bridge\.fly\.dev$/i,
+  /^http:\/\/127\.0\.0\.1(?::\d+)?$/i,
+  /^http:\/\/localhost(?::\d+)?$/i
+];
 
 let contextPromise = null;
 let browserIdleTimer = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
+}
+
+function applyCors(req, res) {
+  const origin = String(req.headers.origin || '');
+  if (isAllowedOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-bridge-api-key');
 }
 
 async function ensureDir(dirPath) {
@@ -263,6 +284,14 @@ async function start() {
   }
 
   const app = express();
+  app.use((req, res, next) => {
+    applyCors(req, res);
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
   app.use(express.json({ limit: '25mb' }));
 
   app.get('/healthz', async (req, res) => {
