@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+dist/
+coverage/
+playwright-user-data/
+bridge-output/
+*.log
+Thumbs.db
+.DS_Store

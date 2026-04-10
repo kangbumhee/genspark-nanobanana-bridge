@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>설정 — 나노바나나 무료 스튜디오</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body { width: 460px; min-height: 300px; max-height: 500px; }
+    .main { padding: 16px 20px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .btn-full {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #1a1a2e;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .save-msg { text-align: center; padding: 10px; color: var(--success); font-weight: 600; }
+    .danger-zone { border-color: var(--danger); }
+    .btn-outline-danger {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--danger);
+      border-radius: 6px;
+      color: var(--danger);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .settings-header h1 { font-size: 15px; margin: 0; color: var(--primary); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left settings-header">
+      <span class="logo">🍌</span>
+      <h1>설정</h1>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="card">
+      <label class="label">🌉 브리지 서버</label>
+      <p class="desc">
+        권장 방식입니다. 확장프로그램은 브리지 서버로만 요청하고, 실제 Genspark 로그인은 서버 쪽 브라우저 프로필에만 유지됩니다.
+      </p>
+      <input type="url" id="bridge-url" placeholder="http://127.0.0.1:8787">
+      <input type="password" id="bridge-api-key" placeholder="BRIDGE_API_KEY" style="margin-top:8px">
+    </div>
+
+    <div class="card">
+      <label class="label">🔐 Genspark 인증 쿠키</label>
+      <p class="desc">
+        기존 쿠키 방식은 보조용으로만 남겨둡니다. 브리지 서버 방식 사용을 권장합니다.<br>
+        필수: <code>ai_user</code>, <code>ai_session</code> / 선택: <code>gslogin</code>
+      </p>
+      <textarea id="auth-cookies" rows="4" placeholder="ai_user=xxx; ai_session=yyy; gslogin=1"></textarea>
+      <button type="button" id="btn-auto-detect" class="btn-sm" style="margin-top:8px">🔍 현재 탭에서 자동 감지</button>
+    </div>
+
+    <div class="card">
+      <label class="label">⚙️ 기본 설정</label>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label class="desc">기본 비율</label>
+          <select id="default-ratio">
+            <option value="1:1">1:1</option>
+            <option value="4:3">4:3</option>
+            <option value="3:4">3:4</option>
+            <option value="16:9">16:9</option>
+            <option value="9:16">9:16</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label class="desc">기본 생성 수</label>
+          <select id="default-count">
+            <option value="1">1장</option>
+            <option value="2">2장</option>
+            <option value="3">3장</option>
+            <option value="4">4장</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card danger-zone">
+      <label class="label">🗑️ 데이터 관리</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" id="btn-export" class="btn-sm">📦 프롬프트보내기</button>
+        <button type="button" id="btn-import" class="btn-sm">📥 가져오기</button>
+        <button type="button" id="btn-clear-history" class="btn-outline-danger">🗑️ 히스토리 삭제</button>
+      </div>
+      <input type="file" id="import-file" accept=".json" hidden>
+    </div>
+
+    <button type="button" id="btn-save" class="btn-full">💾 설정 저장</button>
+    <div id="save-msg" class="save-msg hidden">✅ 저장되었습니다!</div>
+  </main>
+
+  <script src="settings.js"></script>
+</body>
+</html>

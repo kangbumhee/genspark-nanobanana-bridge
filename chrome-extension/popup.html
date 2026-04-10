@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- ===== 헤더 ===== -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">🍌</span>
+      <div>
+        <h1>나노바나나 스튜디오</h1>
+        <span class="header-sub">FREE — API 키 불필요</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button type="button" id="btn-pin" class="icon-btn" title="팝업 고정">📌</button>
+      <button type="button" id="btn-history" class="icon-btn" title="히스토리">🕘</button>
+      <button type="button" id="btn-settings" class="icon-btn" title="설정">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ===== 상태 바 ===== -->
+  <div id="status-bar" class="status-bar disconnected">
+    <span id="status-dot" class="status-dot"></span>
+    <span id="status-text">연결 확인 중...</span>
+  </div>
+
+  <!-- ===== 탭 ===== -->
+  <nav class="tabs">
+    <button type="button" class="tab active" data-tab="generate">🎨 이미지 생성</button>
+    <button type="button" class="tab" data-tab="batch">🔄 반복 생성</button>
+    <button type="button" class="tab" data-tab="prompts">📝 프롬프트</button>
+  </nav>
+
+  <!-- ===== 탭 1: 이미지 생성 ===== -->
+  <section id="tab-generate" class="tab-content active">
+
+    <!-- 참조 이미지 -->
+    <div class="section-card">
+      <label class="label">📷 참조 이미지 <span class="required">*필수</span></label>
+      <div class="ref-toggle">
+        <button type="button" class="ref-tab active" data-ref="file">파일 업로드</button>
+        <button type="button" class="ref-tab" data-ref="url">URL 입력</button>
+      </div>
+
+      <div id="ref-file-area" class="ref-area active">
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-icon">📁</div>
+          <p>클릭하거나 드래그하여<br>제품 이미지 업로드</p>
+          <span class="drop-hint">PNG, JPG, WEBP (최대 10MB)</span>
+        </div>
+        <input type="file" id="file-input" accept="image/*" hidden>
+        <div id="preview-file" class="preview-box hidden"></div>
+      </div>
+
+      <div id="ref-url-area" class="ref-area hidden">
+        <input type="url" id="ref-url-input" placeholder="https://example.com/product.jpg">
+        <button type="button" id="btn-preview-url" class="btn-sm" style="margin-top:6px">미리보기</button>
+        <div id="preview-url" class="preview-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- 프롬프트 -->
+    <div class="section-card">
+      <label class="label">✏️ 프롬프트</label>
+      <div class="prompt-select-row">
+        <select id="saved-prompt-select">
+          <option value="">— 프리셋 / 저장된 프롬프트 —</option>
+        </select>
+        <button type="button" id="btn-load-prompt" class="btn-sm">불러오기</button>
+      </div>
+      <textarea id="prompt-input" rows="4" placeholder="Shopee product thumbnail, a young Korean model holding this product..."></textarea>
+      <div class="prompt-bottom">
+        <span class="char-count"><span id="prompt-length">0</span> / 2000</span>
+        <button type="button" id="btn-save-current" class="btn-sm">💾 저장</button>
+      </div>
+    </div>
+
+    <!-- 옵션 -->
+    <div class="section-card options-row">
+      <div class="option-item">
+        <label>생성 수</label>
+        <select id="gen-count">
+          <option value="1" selected>1장</option>
+          <option value="2">2장</option>
+          <option value="3">3장</option>
+          <option value="4">4장</option>
+        </select>
+      </div>
+      <div class="option-item">
+        <label>비율</label>
+        <select id="gen-ratio">
+          <option value="1:1" selected>1:1 정사각</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 생성 버튼 -->
+    <button type="button" id="btn-generate" class="btn-primary">🍌 이미지 생성하기</button>
+
+    <!-- 진행 상태 -->
+    <div id="progress-area" class="hidden">
+      <div class="progress-header">
+        <span id="progress-status">준비 중...</span>
+        <span id="progress-timer">0초</span>
+      </div>
+      <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+      <div id="progress-detail" class="progress-detail"></div>
+    </div>
+
+    <!-- 결과 -->
+    <div id="result-area" class="hidden">
+      <div class="result-header">
+        <h3>✅ 생성 완료 <span id="result-count"></span></h3>
+        <div class="result-actions">
+          <button type="button" id="btn-download-all" class="btn-sm">💾 전체저장</button>
+          <button type="button" id="btn-copy-urls" class="btn-sm">📋 URL복사</button>
+        </div>
+      </div>
+      <div id="result-grid" class="result-grid"></div>
+    </div>
+  </section>
+
+  <!-- ===== 탭 2: 반복 생성 ===== -->
+  <section id="tab-batch" class="tab-content hidden">
+    <div class="section-card">
+      <label class="label">🔄 반복 생성 모드</label>
+      <p class="desc">같은 프롬프트 + 같은 이미지로 여러 번 자동 생성합니다.</p>
+
+      <div class="batch-config">
+        <div class="option-item">
+          <label>반복 횟수</label>
+          <select id="batch-count">
+            <option value="2">2회</option>
+            <option value="3">3회</option>
+            <option value="5" selected>5회</option>
+            <option value="10">10회</option>
+            <option value="20">20회</option>
+          </select>
+        </div>
+        <div class="option-item">
+          <label>간격 (초)</label>
+          <select id="batch-interval">
+            <option value="5">5초</option>
+            <option value="10" selected>10초</option>
+            <option value="30">30초</option>
+            <option value="60">60초</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="batch-source">
+        <p class="desc">💡 '이미지 생성' 탭에서 설정한 이미지 + 프롬프트를 사용합니다.</p>
+      </div>
+    </div>
+
+    <!-- 모드 선택 -->
+    <div class="section-card">
+      <label class="label">📋 프롬프트 모드</label>
+      <div class="mode-toggle">
+        <button type="button" class="mode-btn active" data-mode="same">🔁 동일 프롬프트</button>
+        <button type="button" class="mode-btn" data-mode="list">📝 프롬프트 목록</button>
+      </div>
+
+      <div id="mode-same" class="mode-content active">
+        <p class="desc">설정된 프롬프트를 매번 동일하게 사용합니다.</p>
+      </div>
+
+      <div id="mode-list" class="mode-content hidden">
+        <p class="desc">줄바꿈으로 구분된 프롬프트를 순서대로 사용합니다.</p>
+        <textarea id="batch-prompts" rows="6" placeholder="첫 번째 프롬프트&#10;두 번째 프롬프트&#10;세 번째 프롬프트..."></textarea>
+      </div>
+    </div>
+
+    <button type="button" id="btn-batch-start" class="btn-primary">🚀 반복 생성 시작</button>
+    <button type="button" id="btn-batch-stop" class="btn-danger hidden">⛔ 중지</button>
+
+    <!-- 반복 진행 상태 -->
+    <div id="batch-progress" class="hidden">
+      <div class="batch-status">
+        <span id="batch-current">0</span> / <span id="batch-total">0</span> 완료
+      </div>
+      <div class="progress-bar"><div id="batch-fill" class="progress-fill"></div></div>
+      <div id="batch-log" class="progress-detail"></div>
+    </div>
+
+    <!-- 반복 결과 -->
+    <div id="batch-results" class="hidden">
+      <div class="result-header">
+        <h3>📦 반복 생성 결과 <span id="batch-result-count"></span></h3>
+        <button type="button" id="btn-batch-download-all" class="btn-sm">💾 전체저장</button>
+      </div>
+      <div id="batch-result-grid" class="result-grid"></div>
+    </div>
+  </section>
+
+  <!-- ===== 탭 3: 프롬프트 관리 ===== -->
+  <section id="tab-prompts" class="tab-content hidden">
+    <div class="section-card">
+      <label class="label">💾 새 프롬프트 저장</label>
+      <input type="text" id="prompt-name" placeholder="프롬프트 이름">
+      <textarea id="prompt-body" rows="3" placeholder="프롬프트 내용..."></textarea>
+      <div class="prompt-save-row">
+        <select id="prompt-category">
+          <option value="Shopee">Shopee 썸네일</option>
+          <option value="상품촬영">상품촬영</option>
+          <option value="모델촬영">모델촬영</option>
+          <option value="기타">기타</option>
+        </select>
+        <button type="button" id="btn-save-prompt" class="btn-accent">저장</button>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="saved-header">
+        <label class="label">📂 저장된 프롬프트</label>
+        <select id="filter-category">
+          <option value="all">전체</option>
+          <option value="Shopee">Shopee 썸네일</option>
+          <option value="상품촬영">상품촬영</option>
+          <option value="모델촬영">모델촬영</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+      <div id="prompt-list" class="prompt-list">
+        <p class="empty-msg">저장된 프롬프트가 없습니다.</p>
+      </div>
+    </div>
+
+    <!-- 프리셋 -->
+    <div class="section-card">
+      <label class="label">📦 Shopee 추천 프리셋</label>
+      <div id="preset-list" class="prompt-list"></div>
+    </div>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>

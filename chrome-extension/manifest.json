@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "🍌 나노바나나 무료 스튜디오",
+  "version": "1.0.0",
+  "description": "Genspark 나노바나나 AI 이미지 생성 — API 키 불필요, 누구나 무료 사용",
+  "permissions": [
+    "storage",
+    "downloads",
+    "activeTab",
+    "scripting",
+    "cookies",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8787/*",
+    "http://localhost:8787/*",
+    "https://genspark.ai/*",
+    "https://www.genspark.ai/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: https://*;"
+  }
+}
