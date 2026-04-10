@@ -9,6 +9,8 @@ chrome.runtime.onInstalled.addListener(() => {
     if (!data.settings) {
       chrome.storage.local.set({
         settings: {
+          bridgeUrl: 'https://genspark-nanobanana-bridge.fly.dev',
+          bridgeApiKey: 'ylL32SH8QI0xeOYrDsNCV5adgMRWnvkp',
           authCookies: '',
           defaultRatio: '1:1',
           defaultCount: '1',
@@ -32,6 +34,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'GENERATE_IMAGE') {
     handleGenerateViaBridge(message.payload)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'SYNC_GENSPARK_SESSION') {
+    syncGensparkSessionToBridge()
       .then(result => sendResponse({ success: true, data: result }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
@@ -87,7 +96,7 @@ async function getSettings() {
 }
 
 function normalizeBridgeUrl(url) {
-  const raw = String(url || '').trim() || 'http://127.0.0.1:8787';
+  const raw = String(url || '').trim() || 'https://genspark-nanobanana-bridge.fly.dev';
   return raw.replace(/\/+$/, '');
 }
 
@@ -114,6 +123,57 @@ async function fetchBridge(path, options = {}) {
   }
 
   return data;
+}
+
+async function captureTabSession(tabId) {
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const localStorageData = {};
+      const sessionStorageData = {};
+
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        localStorageData[key] = localStorage.getItem(key);
+      }
+
+      for (let i = 0; i < sessionStorage.length; i += 1) {
+        const key = sessionStorage.key(i);
+        sessionStorageData[key] = sessionStorage.getItem(key);
+      }
+
+      return {
+        origin: location.origin,
+        href: location.href,
+        localStorage: localStorageData,
+        sessionStorage: sessionStorageData
+      };
+    }
+  });
+
+  return result;
+}
+
+async function syncGensparkSessionToBridge() {
+  const tab = await findOrCreateGensparkTab();
+  await waitTabComplete(tab.id).catch(() => {});
+
+  const allCookies = await chrome.cookies.getAll({});
+  const cookies = allCookies.filter(cookie => String(cookie.domain || '').includes('genspark.ai'));
+  const storage = await captureTabSession(tab.id);
+
+  return fetchBridge('/api/session-sync', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      origin: storage.origin,
+      cookies,
+      localStorage: storage.localStorage,
+      sessionStorage: storage.sessionStorage
+    })
+  });
 }
 
 async function checkBridgeStatus() {

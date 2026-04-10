@@ -19,11 +19,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   const { settings = {} } = await chrome.storage.local.get('settings');
   let detectedCookieObjects = Array.isArray(settings.authCookieObjects) ? settings.authCookieObjects : [];
 
-  document.getElementById('bridge-url').value = settings.bridgeUrl || 'http://127.0.0.1:8787';
-  document.getElementById('bridge-api-key').value = settings.bridgeApiKey || '';
+  document.getElementById('bridge-url').value = settings.bridgeUrl || 'https://genspark-nanobanana-bridge.fly.dev';
+  document.getElementById('bridge-api-key').value = settings.bridgeApiKey || 'ylL32SH8QI0xeOYrDsNCV5adgMRWnvkp';
   document.getElementById('auth-cookies').value = settings.authCookies || '';
   document.getElementById('default-ratio').value = settings.defaultRatio || '1:1';
   document.getElementById('default-count').value = settings.defaultCount || '1';
+
+  document.getElementById('btn-sync-session').addEventListener('click', async () => {
+    try {
+      const newSettings = {
+        bridgeUrl: document.getElementById('bridge-url').value.trim(),
+        bridgeApiKey: document.getElementById('bridge-api-key').value.trim()
+      };
+      await chrome.storage.local.set({ settings: Object.assign({}, settings, newSettings) });
+
+      const res = await sendMessageAsync({ type: 'SYNC_GENSPARK_SESSION' });
+      if (!res?.success) {
+        throw new Error(res?.error || '세션 동기화 실패');
+      }
+
+      const data = res.data || {};
+      alert(
+        `✅ 브리지에 로그인 세션 동기화 완료\n` +
+        `cookies: ${data.cookieCount ?? 0}, localStorage: ${data.localStorageCount ?? 0}, sessionStorage: ${data.sessionStorageCount ?? 0}`
+      );
+    } catch (e) {
+      alert('세션 동기화 실패: ' + e.message);
+    }
+  });
 
   document.getElementById('btn-auto-detect').addEventListener('click', async () => {
     try {

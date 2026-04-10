@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs/promises');
 const path = require('path');
 const { chromium } = require('playwright');
 
@@ -10,13 +11,67 @@ const GENSPARK_USER_DATA_DIR = path.resolve(
 );
 const GENSPARK_HEADLESS = String(process.env.GENSPARK_HEADLESS || 'false') === 'true';
 const GENSPARK_AI_IMAGE_URL = 'https://www.genspark.ai/ai_image';
+const GENSPARK_ORIGIN = 'https://www.genspark.ai';
 const BROWSER_IDLE_MS = Number(process.env.BROWSER_IDLE_MS || 180000);
+const SESSION_STATE_FILE = path.resolve(
+  process.cwd(),
+  process.env.GENSPARK_SESSION_STATE_FILE || './bridge-output/session-state.json'
+);
 
 let contextPromise = null;
 let browserIdleTimer = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensureDir(dirPath) {
+  await fs.mkdir(dirPath, { recursive: true });
+}
+
+function mapSameSite(value) {
+  const raw = String(value || '').toLowerCase();
+  if (raw === 'strict') return 'Strict';
+  if (raw === 'none' || raw === 'no_restriction') return 'None';
+  return 'Lax';
+}
+
+function normalizeCookies(cookies) {
+  return (Array.isArray(cookies) ? cookies : [])
+    .filter((cookie) => cookie && cookie.name && typeof cookie.value !== 'undefined')
+    .map((cookie) => {
+      const domain = String(cookie.domain || '.genspark.ai');
+      const host = domain.replace(/^\./, '');
+      const secure = cookie.secure !== false;
+      const normalized = {
+        name: cookie.name,
+        value: String(cookie.value),
+        domain,
+        path: cookie.path || '/',
+        httpOnly: !!cookie.httpOnly,
+        secure,
+        sameSite: mapSameSite(cookie.sameSite),
+        url: `${secure ? 'https' : 'http'}://${host}`
+      };
+      if (typeof cookie.expirationDate === 'number' && Number.isFinite(cookie.expirationDate)) {
+        normalized.expires = cookie.expirationDate;
+      }
+      return normalized;
+    });
+}
+
+async function saveSessionState(state) {
+  await ensureDir(path.dirname(SESSION_STATE_FILE));
+  await fs.writeFile(SESSION_STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+}
+
+async function loadSessionState() {
+  try {
+    const text = await fs.readFile(SESSION_STATE_FILE, 'utf8');
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 function clearBrowserIdleTimer() {
@@ -90,6 +145,39 @@ async function waitForLoginReady(page) {
     const hasLogin = text.includes('로그인 또는 회원가입') || text.includes('Google로 계속하기');
     return !hasLogin && !!document.querySelector('textarea');
   }, null, { timeout: 60000 });
+}
+
+async function applySessionState(context, page, state) {
+  if (!state) return false;
+
+  const cookies = normalizeCookies(state.cookies);
+  if (cookies.length > 0) {
+    await context.addCookies(cookies);
+  }
+
+  const origin = String(state.origin || GENSPARK_ORIGIN);
+  await page.goto(origin, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => {});
+
+  await page.evaluate((payload) => {
+    const localEntries = Object.entries(payload.localStorage || {});
+    const sessionEntries = Object.entries(payload.sessionStorage || {});
+
+    for (const [key, value] of localEntries) {
+      window.localStorage.setItem(key, value);
+    }
+    for (const [key, value] of sessionEntries) {
+      window.sessionStorage.setItem(key, value);
+    }
+  }, {
+    localStorage: state.localStorage || {},
+    sessionStorage: state.sessionStorage || {}
+  });
+
+  await page.goto(GENSPARK_AI_IMAGE_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => {});
+  scheduleBrowserClose();
+  return true;
 }
 
 async function uploadReferenceImage(page, imageData, imageName) {
@@ -203,6 +291,33 @@ async function start() {
     }
   });
 
+  app.post('/api/session-sync', requireApiKey, async (req, res) => {
+    try {
+      const sessionState = {
+        origin: String(req.body?.origin || GENSPARK_ORIGIN),
+        cookies: Array.isArray(req.body?.cookies) ? req.body.cookies : [],
+        localStorage: req.body?.localStorage || {},
+        sessionStorage: req.body?.sessionStorage || {},
+        syncedAt: new Date().toISOString()
+      };
+
+      await saveSessionState(sessionState);
+
+      const context = await getContext();
+      const page = await getPage(context);
+      await applySessionState(context, page, sessionState);
+
+      res.json({
+        success: true,
+        cookieCount: sessionState.cookies.length,
+        localStorageCount: Object.keys(sessionState.localStorage).length,
+        sessionStorageCount: Object.keys(sessionState.sessionStorage).length
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error.message || error) });
+    }
+  });
+
   app.post('/api/generate-image', requireApiKey, async (req, res) => {
     try {
       const { prompt, imageData, imageName } = req.body || {};
@@ -213,7 +328,15 @@ async function start() {
 
       const context = await getContext();
       const page = await getPage(context);
-      await waitForLoginReady(page);
+      try {
+        await waitForLoginReady(page);
+      } catch (_) {
+        const savedState = await loadSessionState();
+        if (savedState) {
+          await applySessionState(context, page, savedState);
+        }
+        await waitForLoginReady(page);
+      }
       await uploadReferenceImage(page, imageData, imageName);
       await submitPrompt(page, prompt);
       const images = await waitForImages(page);
