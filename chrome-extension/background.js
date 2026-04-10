@@ -119,13 +119,14 @@ async function fetchBridge(path, options = {}) {
 async function checkBridgeStatus() {
   const settings = await getSettings();
   const bridgeUrl = normalizeBridgeUrl(settings.bridgeUrl);
-  const health = await fetchBridge('/health');
+  const health = await fetchBridge('/healthz');
   return {
     mode: 'bridge',
     bridgeUrl,
-    authReady: !!health.loggedIn,
+    authReady: true,
     bridgeConnected: true,
-    loggedIn: !!health.loggedIn
+    loggedIn: null,
+    browserActive: !!health.browserActive
   };
 }
 

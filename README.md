@@ -38,6 +38,23 @@ npm start
 - Bridge server URL: `http://127.0.0.1:8787`
 - Bridge API key: your `BRIDGE_API_KEY`
 
-## GitHub
+## Fly.io deploy
 
-This folder is ready to be initialized as a git repository and pushed to GitHub.
+This repo includes a low-cost Fly.io setup:
+
+- `auto_stop_machines = "stop"`
+- `min_machines_running = 0`
+- 1 shared CPU / 1024MB RAM
+- persistent volume only for the logged-in browser profile
+
+Recommended deploy flow:
+
+```bash
+fly auth login
+fly launch --no-deploy
+fly volumes create genspark_data --size 1 --region nrt
+fly secrets set BRIDGE_API_KEY=your-secret
+fly deploy
+```
+
+After deploy, open a shell or temporary local instance once and log in to Genspark so the persistent profile is stored in the Fly volume.

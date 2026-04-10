@@ -47,7 +47,9 @@ async function checkConnection() {
 
     if (response?.success && response.authReady) {
       bar.className = 'status-bar connected';
-      text.textContent = '✅ 브리지 서버 연결됨 — 이미지 생성 준비 완료';
+      text.textContent = response.browserActive
+        ? '✅ 브리지 서버 연결됨 — 브라우저 세션 활성'
+        : '✅ 브리지 서버 연결됨 — 요청 시 브라우저 자동 시작';
     } else if (response?.success && !response.authReady) {
       bar.className = 'status-bar disconnected';
       text.textContent = '🔐 브리지 서버는 연결됐지만 Genspark 로그인이 필요합니다';

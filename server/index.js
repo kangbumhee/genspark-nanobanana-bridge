@@ -10,11 +10,40 @@ const GENSPARK_USER_DATA_DIR = path.resolve(
 );
 const GENSPARK_HEADLESS = String(process.env.GENSPARK_HEADLESS || 'false') === 'true';
 const GENSPARK_AI_IMAGE_URL = 'https://www.genspark.ai/ai_image';
+const BROWSER_IDLE_MS = Number(process.env.BROWSER_IDLE_MS || 180000);
 
 let contextPromise = null;
+let browserIdleTimer = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clearBrowserIdleTimer() {
+  if (browserIdleTimer) {
+    clearTimeout(browserIdleTimer);
+    browserIdleTimer = null;
+  }
+}
+
+async function closeContext() {
+  clearBrowserIdleTimer();
+  if (!contextPromise) return;
+
+  try {
+    const context = await contextPromise;
+    await context.close();
+  } catch (_) {
+  } finally {
+    contextPromise = null;
+  }
+}
+
+function scheduleBrowserClose() {
+  clearBrowserIdleTimer();
+  browserIdleTimer = setTimeout(() => {
+    closeContext().catch(() => {});
+  }, BROWSER_IDLE_MS);
 }
 
 function requireApiKey(req, res, next) {
@@ -41,7 +70,9 @@ async function getContext({ headless = GENSPARK_HEADLESS } = {}) {
     });
   }
 
-  return contextPromise;
+  const context = await contextPromise;
+  scheduleBrowserClose();
+  return context;
 }
 
 async function getPage(context) {
@@ -49,6 +80,7 @@ async function getPage(context) {
   const page = existing || (await context.newPage());
   await page.goto(GENSPARK_AI_IMAGE_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle').catch(() => {});
+  scheduleBrowserClose();
   return page;
 }
 
@@ -145,7 +177,15 @@ async function start() {
   const app = express();
   app.use(express.json({ limit: '25mb' }));
 
-  app.get('/health', async (req, res) => {
+  app.get('/healthz', async (req, res) => {
+    res.json({
+      success: true,
+      service: 'genspark-bridge',
+      browserActive: !!contextPromise
+    });
+  });
+
+  app.get('/auth-status', async (req, res) => {
     try {
       const context = await getContext();
       const page = await getPage(context);
